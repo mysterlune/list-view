@@ -523,7 +523,7 @@ test("`_cachedHeights`, `_cachedPos` recalculate once `itemViews` render.", func
         currentTop += lastItemView ? lastItemView.get('itemHeight') : 0;
         itemView.set('position.y', currentTop);
         lastItemView = itemView;
-      }.bind(this));
+      });
 
       delete lastItemView;
 
