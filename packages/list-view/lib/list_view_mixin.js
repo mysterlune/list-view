@@ -424,6 +424,45 @@ export default Ember.Mixin.create({
 
   /**
     @private
+
+    Dynamic changes to individual row heights may require the cache of computed
+    heights to get recalculated. For example, a change in height due to a nested
+    textfield expanding would require the list item's positions below its own index
+    to shift downward and the total list height to get updated.
+
+    @method _recalculateCachedHeights
+  */
+  _recalculateCachedHeights: function() {
+    var childViews = this.positionOrderedChildViews(),
+      childViewsLength = childViews.length;
+    this._cachedHeights = [0];
+    this._cachedPos = 0;
+    this._cachedHeightLookup(childViewsLength-1);
+    Ember.run.once(this, this._forceUpdateTotalHeight);
+  },
+
+
+  /**
+    @private
+
+    Because `totalHeight` cannot observe individual rows for height changes (not
+    without very expensive `@each`-ish observing, anyway), force the `totalHeight`
+    value to get updated using the standard height lookup.
+
+    @method _forceUpdateTotalHeight
+  */
+  _forceUpdateTotalHeight: function() {
+    var newHeight;
+    if (typeof this.heightForIndex === 'function') {
+      newHeight = this._totalHeightWithHeightForIndex();
+    } else {
+      newHeight = this._totalHeightWithStaticRowHeight();
+    }
+    set(this, 'totalHeight', newHeight);
+  },
+
+  /**
+    @private
     @method _childViewCount
   */
   _childViewCount: function() {

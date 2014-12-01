@@ -467,4 +467,100 @@ test("handle bindable rowHeight with multi-height (only fallback case)", functio
     { x:0, y:  200 }, // <-- visible
     { x:0, y:  400 }, // <-- buffer
   ], "inDOM views are correctly positioned: after rowHeight change");
+
+});
+
+test("`_cachedHeights`, `_cachedPos` recalculate once `itemViews` render.", function() {
+  var content = [
+    { id:  1, type: "cat",   name: "Andrew" },
+    { id:  3, type: "cat",   name: "Bruce" },
+    { id:  4, type: "other", name: "Xbar" },
+    { id:  5, type: "dog",   name: "Caroline" },
+    { id:  6, type: "cat",   name: "David" },
+    { id:  7, type: "other", name: "Xbar" }
+  ];
+
+  var ItemViewClass = Ember.ListItemView.extend({
+
+    rowHeight: 200,
+
+    // Lets say you have some routine that dynamically updates a row's
+    //  own `rowHeight` value... maybe some accordion thing within the
+    //  list item view.
+    // For this example, just observe a change on the `content` propery
+    //  to trigger the update to the item's own `rowHeight` value.
+    itemHeight: Ember.computed('content', function() {
+      var defaultRowHeight = this.get('rowHeight'),
+        scaleFactor = 1.1,
+        newHeight = Math.floor(defaultRowHeight*scaleFactor);
+
+      this.set('rowHeight', newHeight);
+      return newHeight;
+    }),
+
+    template: Ember.Handlebars.compile('Boom, my friend. Boom.')
+  });
+
+  view = Ember.ListView.create({
+    content: Em.A(content),
+    height: 600,
+    width: 500,
+    rowHeight: 200, // Overridden if itemView has a rowHeight
+    itemViewClass: ItemViewClass,
+    heightForIndex: function(idx) {
+      var views = this.positionOrderedChildViews(),
+        view = views[idx] || ItemViewClass;
+
+      return Ember.get(view,'rowHeight') || view.proto().rowHeight || Ember.get(this,'rowHeight');
+    },
+
+    onChildViewsDidRender: function() {
+      var currentTop = 0,
+        lastItemView,
+        childViews = this.positionOrderedChildViews();
+
+      childViews.forEach(function(itemView) {
+        currentTop += lastItemView ? lastItemView.get('itemHeight') : 0;
+        itemView.set('position.y', currentTop);
+        lastItemView = itemView;
+      }.bind(this));
+
+      delete lastItemView;
+
+      // This next block should be written:
+      //
+      // ````
+      // Ember.run.once(view, view._recalculateCachedHeights);
+      // ````
+      //
+      //... in non-testing mode.
+      Ember.run(function() {
+        view._recalculateCachedHeights();
+      });
+    }
+
+  });
+
+  appendView();
+
+  // Under non-testing circumstances, a callback should be scheduled for the `afterRender`
+  //  queue. In the `onChildViewsChanged` handler, you could simply do:
+  //
+  // ````
+  // onChildViewsChanged: function(obj, key){
+  //   var length = this.get('childViews.length');
+  //   if( length > 0 ){
+  //       Ember.run.scheduleOnce('afterRender', this, 'childViewsDidRender');
+  //   }
+  // }.observes('childViews'),
+  // ````
+  // ... in the extended list view. But since we're in testing mode here sans run-loop, just do:
+  view.onChildViewsDidRender();
+
+  equal(view.get('totalHeight'), 1280);
+
+  // Grab an item
+  var thirdItemHeight = view.heightForIndex(2);
+  equal(thirdItemHeight, 220);
+
 });
